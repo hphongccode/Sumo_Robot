@@ -1,0 +1,28 @@
+--cpu Cortex-M3
+"l298n\startup_stm32f103xb.o"
+"l298n\main.o"
+"l298n\stm32f1xx_it.o"
+"l298n\stm32f1xx_hal_msp.o"
+"l298n\stm32f1xx_hal_gpio_ex.o"
+"l298n\stm32f1xx_hal_tim.o"
+"l298n\stm32f1xx_hal_tim_ex.o"
+"l298n\stm32f1xx_hal.o"
+"l298n\stm32f1xx_hal_rcc.o"
+"l298n\stm32f1xx_hal_rcc_ex.o"
+"l298n\stm32f1xx_hal_gpio.o"
+"l298n\stm32f1xx_hal_dma.o"
+"l298n\stm32f1xx_hal_cortex.o"
+"l298n\stm32f1xx_hal_pwr.o"
+"l298n\stm32f1xx_hal_flash.o"
+"l298n\stm32f1xx_hal_flash_ex.o"
+"l298n\stm32f1xx_hal_exti.o"
+"l298n\system_stm32f1xx.o"
+"l298n\motor.o"
+"l298n\line_sensor.o"
+"l298n\ultrasonic.o"
+"l298n\fuzzy.o"
+"l298n\robot_control.o"
+--strict --scatter "l298n\l298n.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "l298n.map" -o l298n\l298n.axf
