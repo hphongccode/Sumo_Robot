@@ -105,27 +105,18 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	volatile UltraState u;
-	volatile LineState l ;
+
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		//	Motor_Set(100, 100);   // tien
-	//	Motor_Forward(100);
-		//Motor_Backward(100);
-   // u = Ultra_ReadAll();
-		Robot_Run();
-    HAL_Delay(20);
 		
-   // HAL_Delay(1000);
-		//Motor_Set(-100, -100);
-			//Motor_Set(-100, -100); // lui
-			//HAL_Delay(5000);
-			//Motor_Set(-80, 80);  // quay trai
-			//HAL_Delay(5000);
-			//Motor_Set(80, -80);   // quay phai
-			//Motor_Set(80, 50);   // re mem phai
+    //u = Ultra_ReadAll();
+		Robot_Run();
+    HAL_Delay(5);
+		
+   
   }
   /* USER CODE END 3 */
 }

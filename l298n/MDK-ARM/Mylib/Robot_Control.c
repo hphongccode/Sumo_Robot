@@ -1,114 +1,146 @@
 #include "robot_control.h"
-#include "main.h"         // Ð? s? d?ng hàm HAL_GetTick()
+#include "main.h"
 #include "Motor.h"
 #include "line_sensor.h"
 #include "ultrasonic.h"
 #include "fuzzy.h"
 
-/* L?y các bi?n c? ng?t t? file line_sensor.c */
 extern volatile uint8_t line_flag;
 extern volatile uint8_t line_dir;
 
-/* Ð?nh nghia các tr?ng thái c?a Robot */
-typedef enum {
-    STATE_NORMAL = 0,
-    STATE_ESCAPE_REVERSE,
-    STATE_ESCAPE_TURN
-} RobotState;
+typedef enum { STATE_NORMAL = 0, STATE_ESCAPE_REVERSE, STATE_ESCAPE_TURN } RobotState;
 
-/* Các bi?n c?c b? qu?n lý State Machine */
-static RobotState current_state = STATE_NORMAL;
-static uint8_t current_escape_dir = 0;
-static uint32_t state_start_time = 0;
+static RobotState current_state    = STATE_NORMAL;
+static uint8_t    escape_mask      = 0;
+static uint32_t   state_start_time = 0;
 
-/* Tùy ch?nh thông s? th?i gian (ms) - C?n test th?c t? d? tinh ch?nh */
-#define TIME_REVERSE 400 // Th?i gian lùi g?p d? tri?t tiêu quán tính
-#define TIME_TURN    300 // Th?i gian xoay robot hu?ng vào trong sân
+#define TIME_REVERSE  500
+#define TIME_TURN     700
+
+
+/* Tính motor output t? bitmask, x? lý d? 16 t? h?p */
+static void escape_get_motors(uint8_t mask, int16_t *ls, int16_t *rs)
+{
+    uint8_t f = mask & LINE_FRONT, b = mask & LINE_BACK;
+    uint8_t l = mask & LINE_LEFT,  r = mask & LINE_RIGHT;
+		/*
+		if(f && b && l) { *ls = -80; *rs =  80; return; }  // B? ép 3 phía tr? ph?i ? xoay ph?i thoát
+    if(f && b && r) { *ls =  80; *rs = -80; return; }  // B? ép 3 phía tr? trái ? xoay trái thoát
+    if(f && l && r) { *ls = -90; *rs = -90; return; }  // Phía tru?c + 2 bên ? lùi th?ng
+    if(b && l && r) { *ls =  90; *rs =  90; return; }  // Phía sau + 2 bên ? ti?n th?ng
+		*/
+    if(f && l) { *ls = -55;  *rs = -100; return; }  // Lùi l?ch ph?i
+    if(f && r) { *ls = -100; *rs = -55;  return; }  // Lùi l?ch trái
+    if(b && l) { *ls =  55;  *rs =  100; return; }  // Ti?n l?ch ph?i
+    if(b && r) { *ls =  100; *rs =  55;  return; }  // Ti?n l?ch trái
+   
+		if(f)      { *ls = -100;  *rs = -100;  return; }
+    if(b)      { *ls =  100;  *rs =  100;  return; }
+    if(l)      { *ls =  100;  *rs = -100;  return; }  // Xoay ph?i
+    if(r)      { *ls = -100;  *rs =  100;  return; }  // Xoay trái
+    *ls = 0; *rs = 0;
+}
+
+/* Hu?ng quay v? gi?a sân sau khi dã lùi d? */
+static void escape_get_turn(uint8_t mask, int16_t *ls, int16_t *rs)
+{
+    if(mask & LINE_RIGHT) { *ls = -100; *rs =  100; }   // Bên ph?i có line ? quay trái
+    else                  { *ls =  100; *rs = -100; }   // M?c d?nh ? quay ph?i
+}
 
 void Robot_Run(void)
 {
     uint32_t now = HAL_GetTick();
 
-    /* ===== 1. UU TIÊN S? 1: NH?N NG?T LINE ===== */
+    /* ===== 1. X? LÝ C? NG?T ===== */
     if (line_flag)
     {
-        line_flag = 0; 
-        
-        // C?p nh?t tr?ng thái sang lùi g?p ngay l?p t?c
-        current_state = STATE_ESCAPE_REVERSE;
-        current_escape_dir = line_dir;
+        /* Atomic read+clear: tránh race condition gi?a ISR và main loop */
+        __disable_irq();
+        escape_mask = line_dir;
+        line_dir    = 0;
+        line_flag   = 0;
+        __enable_irq();
+
+        current_state    = STATE_ESCAPE_REVERSE;
         state_start_time = now;
-        
-        // Phanh g?p v?i t?c d? cao nh?t d? ch?ng tru?t qua line
-        switch(current_escape_dir) {
-            case 1: Motor_Set(-85, -85); break; // V?ch tru?c -> Lùi Max t?c
-            case 2: Motor_Set(85, 85);   break; // V?ch sau -> Ti?n Max t?c
-            case 3: Motor_Set(85, -85);  break; // V?ch trái -> Xoay ph?i Max t?c
-            case 4: Motor_Set(-85, 85);  break; // V?ch ph?i -> Xoay trái Max t?c
-            default: Motor_Set(0, 0); break;
-        }
-        return; // Thoát hàm ngay d? không ch?y Fuzzy
+
+        int16_t ls, rs;
+        escape_get_motors(escape_mask, &ls, &rs);
+        Motor_Set(ls, rs);
+        return;
     }
 
-    /* ===== 2. X? LÝ MÁY TR?NG THÁI (STATE MACHINE) ===== */
+    /* ===== 2. STATE MACHINE ===== */
     switch (current_state)
     {
         case STATE_ESCAPE_REVERSE:
-            if ((now - state_start_time) < TIME_REVERSE) 
-            {
-                // Ðang trong th?i gian lùi g?p -> Duy trì t?c d? phanh
-                switch(current_escape_dir) {
-                    case 1: Motor_Set(-85, -85); break;
-                    case 2: Motor_Set(85, 85);   break;
-                    case 3: Motor_Set(85, -85);  break; 
-                    case 4: Motor_Set(-85, 85);  break; 
-                }
-            } 
-            else 
-            {
-                // H?t th?i gian lùi. N?u là v?ch tru?c/sau thì chuy?n sang xoay d?u.
-                // N?u là v?ch trái/ph?i thì d?ng tác xoay ? trên dã d? thoát, v? NORMAL.
-                if (current_escape_dir == 1 || current_escape_dir == 2) {
-                    current_state = STATE_ESCAPE_TURN;
+        {
+            if ((now - state_start_time) < TIME_REVERSE) {
+                int16_t ls, rs;
+                escape_get_motors(escape_mask, &ls, &rs);
+                Motor_Set(ls, rs);
+            } else {
+                /* Side-only (left/right) dã thoát b?ng xoay ? v? NORMAL ngay */
+                if (escape_mask & (LINE_FRONT | LINE_BACK)) {
+                    current_state    = STATE_ESCAPE_TURN;
                     state_start_time = now;
                 } else {
                     current_state = STATE_NORMAL;
                 }
             }
             break;
+        }
 
         case STATE_ESCAPE_TURN:
-            if ((now - state_start_time) < TIME_TURN) 
-            {
-                // Xoay robot hu?ng vào gi?a sân (Ðã tang l?c lên 85 d? th?ng ma sát tinh)
-                Motor_Set(85, -85); 
-            } 
-            else 
-            {
-                // H?t th?i gian xoay, ki?m tra xem dã thoát v?ch chua
+        {
+            if ((now - state_start_time) < TIME_TURN) {
+                int16_t ls, rs;
+                escape_get_turn(escape_mask, &ls, &rs);
+                Motor_Set(ls, rs);
+            } else {
                 LineState s = Line_Read();
                 if (!s.front && !s.back && !s.left && !s.right) {
-                    current_state = STATE_NORMAL; // Ðã an toàn
+                    current_state = STATE_NORMAL;
                 } else {
-                    // Xui x?o v?n k?t v?ch -> kích ho?t lùi l?i t? d?u
-                    current_state = STATE_ESCAPE_REVERSE;
+                    current_state    = STATE_ESCAPE_REVERSE;  // V?n dính line ? lùi l?i
                     state_start_time = now;
                 }
             }
             break;
+        }
 
         case STATE_NORMAL:
         default:
         {
-            /* ===== 3. CH? Ð? BÌNH THU?NG (FUZZY LOGIC) ===== */
-            UltraState u = Ultra_ReadAll();
+            /* Polling fallback – b?t line k? c? khi interrupt miss do t?c d? cao (s? c? 1) */
+            /*LineState poll = Line_Read();
+             uint8_t poll_mask = 0;
+            if(poll.front) poll_mask |= LINE_FRONT;
+            if(poll.back)  poll_mask |= LINE_BACK;
+            if(poll.left)  poll_mask |= LINE_LEFT;
+            if(poll.right) poll_mask |= LINE_RIGHT;
 
+            if(poll_mask) {
+                __disable_irq();
+                escape_mask = poll_mask | line_dir;
+                line_dir    = 0;
+                line_flag   = 0;
+                __enable_irq();
+                current_state    = STATE_ESCAPE_REVERSE;
+                state_start_time = now;
+                int16_t ls, rs;
+                escape_get_motors(escape_mask, &ls, &rs);
+                Motor_Set(ls, rs);
+                break;
+            }
+						*/
+            UltraState u = Ultra_ReadAll();
             int16_t ls, rs;
             Fuzzy_Control(u.left, u.mid, u.right, &ls, &rs);
 
-            // B? gi?m gi?t (x 0.9) d? gi? nguyên s?c m?nh t?n công
-            Motor_Set(ls, rs);
+            Motor_Set(ls*0.9, rs*0.9);
+            break;
         }
-        break;
     }
 }
