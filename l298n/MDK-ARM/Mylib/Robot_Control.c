@@ -14,7 +14,7 @@ static RobotState current_state    = STATE_NORMAL;
 static uint8_t    escape_mask      = 0;
 static uint32_t   state_start_time = 0;
 
-#define TIME_REVERSE  500
+#define TIME_REVERSE  600
 #define TIME_TURN     700
 
 

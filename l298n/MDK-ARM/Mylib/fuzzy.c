@@ -1,7 +1,7 @@
 #include "fuzzy.h"
 
 /* ===== CRISP OUTPUT VALUES ===== */
-#define OUT_RVS  (-80.0f)
+#define OUT_RVS  (-85.0f)
 #define OUT_MID   (65.0f)
 #define OUT_FAST  (85.0f)
 #define OUT_MAX  (100.0f)
@@ -11,20 +11,25 @@
    MID  : rise [15-40], fall [40-65]   ? min-sensor ch? xét trong vùng này
    FAR  : rise [55-65], full t?i 65+
 */
+/* NEAR : full [0-15], zero t?i 20 */
 static float mu_near(float x) {
     if(x <= 15.0f) return 1.0f;
-    if(x >= 25.0f) return 0.0f;
-    return (25.0f - x) / 10.0f;
+    if(x >= 20.0f) return 0.0f;
+    return (20.0f - x) / 8.0f;
 }
+
+/* MID : rise [15-30], fall [30-52] */
 static float mu_mid(float x) {
-    if(x <= 15.0f || x >= 65.0f) return 0.0f;
-    if(x <= 40.0f) return (x - 15.0f) / 25.0f;
-    return (65.0f - x) / 25.0f;
+    if(x <= 15.0f || x >= 52.0f) return 0.0f;
+    if(x <= 30.0f) return (x - 12.0f) / 18.0f;
+    return (52.0f - x) / 22.0f;
 }
+
+/* FAR : rise [45-52], full t?i 52+ */
 static float mu_far(float x) {
-    if(x <= 55.0f) return 0.0f;
-    if(x >= 65.0f) return 1.0f;
-    return (x - 55.0f) / 10.0f;
+    if(x <= 45.0f) return 0.0f;
+    if(x >= 52.0f) return 1.0f;
+    return (x - 45.0f) / 7.0f;
 }
 /* M?c d? a < b (dùng cho di?u ki?n min-sensor) */
 static float fuzzy_less(float a, float b) {
