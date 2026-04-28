@@ -1,0 +1,5 @@
+menu "Project Configuration"
+    config BLYNK_TOKEN
+        string "Blynk Token"
+        default ""
+endmenu
