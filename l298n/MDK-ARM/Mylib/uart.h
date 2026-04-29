@@ -17,6 +17,7 @@ extern uint8_t data_ready_flag;
 void UART_DMA_Init(void);
 void UART_DMA_SendString(char *str);
 void UART_DMA_SendData(uint8_t *data, uint16_t len);
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart);
 
 #endif /* SRC_UART_H_ */
 
