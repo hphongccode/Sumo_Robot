@@ -113,16 +113,15 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	volatile UltraState u;
-
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 		
-    //u = Ultra_ReadAll();
+    u = Ultra_ReadAll();
 		Robot_Run();
-    HAL_Delay(5);
+    
 		
    
   }

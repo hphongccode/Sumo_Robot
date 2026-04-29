@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "line_sensor.h"
+#include "Motor.h"
 
 
 /* ===== GLOBAL ===== */
@@ -46,7 +47,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     if(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_11) == GPIO_PIN_RESET) mask |= LINE_RIGHT;
 
     if(mask == 0) return;   // Noise: pin dã v? HIGH tru?c khi d?c k?p
-
     line_dir  |= mask;      // OR accumulate – không m?t sensor nào k? c? trigger l?ch th?i gian
     line_flag  = 1;
     line_time  = HAL_GetTick();
