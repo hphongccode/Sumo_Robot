@@ -21,7 +21,10 @@ void CMD_Process(uint8_t *data, uint16_t len);
 /* Các hàm hành động (Ví dụ cho Robot Sumo) */
 void Action_MoveForward(void);
 void Action_MoveBackward(void);
+void Action_TurnLeft(void);
+void Action_TurnRight(void);
 void Action_Stop(void);
+
 void Action_ToggleLED(void);
 
 #endif /* MESSAGE_H_ */
