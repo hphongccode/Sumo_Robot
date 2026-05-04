@@ -16,12 +16,14 @@
 "l298n\stm32f1xx_hal_flash.o"
 "l298n\stm32f1xx_hal_flash_ex.o"
 "l298n\stm32f1xx_hal_exti.o"
+"l298n\stm32f1xx_hal_uart.o"
 "l298n\system_stm32f1xx.o"
 "l298n\motor.o"
 "l298n\line_sensor.o"
 "l298n\ultrasonic.o"
 "l298n\fuzzy.o"
 "l298n\robot_control.o"
+"l298n\uart.o"
 --strict --scatter "l298n\l298n.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

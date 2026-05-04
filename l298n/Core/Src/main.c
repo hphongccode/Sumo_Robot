@@ -53,6 +53,8 @@ UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
 
 /* USER CODE BEGIN PV */
+
+/* USER CODE BEGIN PV */
 float speed_multiplier = 0.0f;
 uint8_t robot_mode = 0;
 /* USER CODE END PV */
