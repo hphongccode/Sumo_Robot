@@ -1,0 +1,104 @@
+#include <stdlib.h>
+#include "message.h"
+#include "uart.h" // Sử dụng lại thư viện gửi dữ liệu đã tạo ở bước trước
+#include "Robot_Control.h"
+#include "Motor.h"
+
+extern volatile float speed_multiplier;
+static int speed = 85; // speed >= 0 & <= 100
+extern volatile uint8_t robot_mode;
+/**
+ * @brief Hàm phân giải lệnh nhận được từ ESP32
+ * @param data: Con trỏ đến bộ đệm chứa dữ liệu
+ * @param len: Độ dài dữ liệu thực tế
+ */
+
+void CMD_Process(uint8_t *data, uint16_t len) {
+    // Chuyển đổi dữ liệu nhận được thành chuỗi (String) để dễ xử lý
+    char msg[MAX_CMD_LEN];
+    if (len >= MAX_CMD_LEN) len = MAX_CMD_LEN - 1;
+
+    memcpy(msg, data, len);
+    msg[len] = '\0'; // Kết thúc chuỗi
+
+    char *speed_ptr = strstr(msg, "SPEED:");
+
+    /* BẮT ĐẦU PHÂN GIẢI LỆNH */
+
+    // Kiểm tra lệnh tiến
+    if (strstr(msg, "PWR:0") != NULL) {
+            speed_multiplier = 0.0f;
+            HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+            // UART_DMA_SendString("STM32: Power OFF, LED PC13 OFF\r\n");
+        }
+        // BẬT (PWR:1)
+        else if (strstr(msg, "PWR:1") != NULL) {
+            speed_multiplier = 1.0f;
+            HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+            // UART_DMA_SendString("STM32: Power ON, LED PC13 ON\r\n");
+        }
+        // CHUYỂN SANG MODE AUTO
+        else if (strstr(msg, "MODE:0") != NULL) {
+        	Robot_ResetState();
+            robot_mode = 0;
+            UART_DMA_SendString("STM32: Switched to AUTO Mode\r\n");
+        }
+        // CHUYỂN SANG MODE MANUAL
+        else if (strstr(msg, "MODE:1") != NULL) {
+        	Motor_Set(0, 0);
+            robot_mode = 1;
+            UART_DMA_SendString("STM32: Switched to MANUAL Mode\r\n");
+        }
+        else if (speed_ptr != NULL) {
+            speed = atoi(speed_ptr + 6);
+        }
+
+        // ----------------------------------------------------
+        // [ĐIỀU KHIỂN THỦ CÔNG] Chỉ thực thi nếu robot_mode == 1
+        // ----------------------------------------------------
+
+        // Kiểm tra lệnh tiến (fw)
+        else if (robot_mode == 1) {
+
+                /* --- ĐIỀU KHIỂN TIẾN --- */
+				if (strstr(msg, "FW:1") != NULL) { Action_MoveForward(); }
+				else if (strstr(msg, "BW:1") != NULL) { Action_MoveBackward(); }
+				else if (strstr(msg, "RL:1") != NULL) { Action_TurnLeft(); }
+				else if (strstr(msg, "RR:1") != NULL) { Action_TurnRight(); }
+				// Nhả nút - chỉ khớp đúng lệnh thả nút điều khiển
+				else if (strstr(msg, "FW:0") != NULL ||
+						 strstr(msg, "BW:0") != NULL ||
+						 strstr(msg, "RL:0") != NULL ||
+						 strstr(msg, "RR:0") != NULL) {
+					Action_Stop();
+				}
+            }
+
+        // ----------------------------------------------------
+        // Trường hợp lệnh không xác định
+        // ----------------------------------------------------
+        else {
+            UART_DMA_SendString("STM32: Unknown Command!\r\n");
+        }
+}
+
+/* ĐỊNH NGHĨA CÁC HÀNH ĐỘNG CHI TIẾT */
+void Action_MoveForward(void) {
+	Motor_Set(speed, speed - MOTOR_TRIM);
+}
+
+void Action_MoveBackward(void) {
+	Motor_Set(-speed, -speed + MOTOR_TRIM);
+}
+
+void Action_TurnLeft(void) {
+    Motor_Set(-speed, speed - MOTOR_TRIM);
+}
+
+void Action_TurnRight(void) {
+    Motor_Set(speed, -speed + MOTOR_TRIM);
+}
+
+void Action_Stop(void) {
+    Motor_Stop();
+}
