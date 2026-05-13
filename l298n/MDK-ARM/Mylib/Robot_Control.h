@@ -3,7 +3,8 @@
 
 #include "stdint.h"
 #include "stdio.h"
-/* Khai báo hàm ch?y chính c?a robot */
+/* Khai bï¿½o hï¿½m ch?y chï¿½nh c?a robot */
 void Robot_Run(void);
+void Robot_ResetState(void);
 
 #endif /* __ROBOT_CONTROL_H */

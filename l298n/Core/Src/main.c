@@ -53,10 +53,8 @@ UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
 
 /* USER CODE BEGIN PV */
-
-/* USER CODE BEGIN PV */
-float speed_multiplier = 0.0f;
-uint8_t robot_mode = 0;
+volatile float speed_multiplier = 0.0f;
+volatile uint8_t robot_mode = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -83,7 +81,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	uint8_t first_stop = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -128,28 +125,20 @@ int main(void)
 
     //u = Ultra_ReadAll();
 	if (data_ready_flag == 1) {
-	  // Reset cờ ngay lập tức
-	  data_ready_flag = 0;
-	  CMD_Process(main_buffer, rx_data_len);
-	}
-	if (speed_multiplier){
-		if (robot_mode == 0){
-			Robot_Run();
-			first_stop = 0;
-		}
-		else if (!first_stop){
-			Motor_Set(0, 0);
-			first_stop = 1;
-		}
-	}
-	else {
-		Motor_Set(0, 0);
-		first_stop = 0;
-	}
+		  data_ready_flag = 0;
+		  CMD_Process(main_buffer, rx_data_len);
+	  }
 
+	  if (speed_multiplier) {
+		  if (robot_mode == 0) {
+			  Robot_Run();  // Auto mode only
+		  }
+		  // Manual mode: do nothing here, CMD_Process handles motors
+	  } else {
+		  Motor_Stop();  // Power off = stop
+	  }
 
-
-  }
+	}
   /* USER CODE END 3 */
 }
 

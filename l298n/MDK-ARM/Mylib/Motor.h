@@ -4,6 +4,7 @@
 #include "main.h"
 
 #define MOTOR_MAX_SPEED 100
+#define MOTOR_TRIM 5
 
 void Motor_Init(void);
 

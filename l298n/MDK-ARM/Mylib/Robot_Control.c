@@ -17,34 +17,44 @@ static uint32_t   state_start_time = 0;
 #define TIME_REVERSE  400
 #define TIME_TURN     550
 
+void Robot_ResetState(void) {
+    current_state    = STATE_NORMAL;
+    escape_mask      = 0;
+    state_start_time = 0;
 
-/* Tính motor output t? bitmask, x? lý d? 16 t? h?p */
+    // Clear any pending line sensor flags
+    __disable_irq();
+    line_flag = 0;
+    line_dir  = 0;
+    __enable_irq();
+}
+/* Tï¿½nh motor output t? bitmask, x? lï¿½ d? 16 t? h?p */
 static void escape_get_motors(uint8_t mask, int16_t *ls, int16_t *rs)
 {
     uint8_t f = mask & LINE_FRONT, b = mask & LINE_BACK;
     uint8_t l = mask & LINE_LEFT,  r = mask & LINE_RIGHT;
 		/*
-		if(f && b && l) { *ls = -80; *rs =  80; return; }  // B? ép 3 phía tr? ph?i ? xoay ph?i thoát
-    if(f && b && r) { *ls =  80; *rs = -80; return; }  // B? ép 3 phía tr? trái ? xoay trái thoát
-    if(f && l && r) { *ls = -90; *rs = -90; return; }  // Phía tru?c + 2 bên ? lùi th?ng
-    if(b && l && r) { *ls =  90; *rs =  90; return; }  // Phía sau + 2 bên ? ti?n th?ng
+		if(f && b && l) { *ls = -80; *rs =  80; return; }  // B? ï¿½p 3 phï¿½a tr? ph?i ? xoay ph?i thoï¿½t
+    if(f && b && r) { *ls =  80; *rs = -80; return; }  // B? ï¿½p 3 phï¿½a tr? trï¿½i ? xoay trï¿½i thoï¿½t
+    if(f && l && r) { *ls = -90; *rs = -90; return; }  // Phï¿½a tru?c + 2 bï¿½n ? lï¿½i th?ng
+    if(b && l && r) { *ls =  90; *rs =  90; return; }  // Phï¿½a sau + 2 bï¿½n ? ti?n th?ng
 		*/
-    if(f && l) { *ls = -90; *rs = -70; return; }  // Lùi l?ch ph?i
-    if(f && r) { *ls = -70; *rs = -90;  return; }  // Lùi l?ch trái
+    if(f && l) { *ls = -90; *rs = -70; return; }  // Lï¿½i l?ch ph?i
+    if(f && r) { *ls = -70; *rs = -90;  return; }  // Lï¿½i l?ch trï¿½i
     if(b && l) { *ls =  100; *rs =  60; return; }  // Ti?n l?ch ph?i
-    if(b && r) { *ls =  60; *rs =  100;  return; }  // Ti?n l?ch trái
-   
+    if(b && r) { *ls =  60; *rs =  100;  return; }  // Ti?n l?ch trï¿½i
+
 		if(f)      { *ls = -100;  *rs = -100;  return; }
     if(b)      { *ls =  100;  *rs =  100;  return; }
     if(l)      { *ls =  -90;  *rs = -70;  return; }  // Xoay ph?i
-    if(r)      { *ls = -70;  *rs =  -90;  return; }  // Xoay trái
+    if(r)      { *ls = -70;  *rs =  -90;  return; }  // Xoay trï¿½i
     *ls = 0; *rs = 0;
 }
 
-/* Hu?ng quay v? gi?a sân sau khi dã lùi d? */
+/* Hu?ng quay v? gi?a sï¿½n sau khi dï¿½ lï¿½i d? */
 static void escape_get_turn(uint8_t mask, int16_t *ls, int16_t *rs)
 {
-    if(mask & LINE_RIGHT) { *ls = -80; *rs =  80; }   // Bên ph?i có line ? quay trái
+    if(mask & LINE_RIGHT) { *ls = -80; *rs =  80; }   // Bï¿½n ph?i cï¿½ line ? quay trï¿½i
     else                  { *ls =  80; *rs = -80; }   // M?c d?nh ? quay ph?i
 }
 
@@ -52,10 +62,10 @@ void Robot_Run(void)
 {
     uint32_t now = HAL_GetTick();
 
-    /* ===== 1. X? LÝ C? NG?T ===== */
+    /* ===== 1. X? Lï¿½ C? NG?T ===== */
     if (line_flag)
     {
-        /* Atomic read+clear: tránh race condition gi?a ISR và main loop */
+        /* Atomic read+clear: trï¿½nh race condition gi?a ISR vï¿½ main loop */
         __disable_irq();
         escape_mask = line_dir;
         line_dir    = 0;
@@ -81,7 +91,7 @@ void Robot_Run(void)
                 escape_get_motors(escape_mask, &ls, &rs);
                 Motor_Set(ls, rs);
             } else {
-                /* Side-only (left/right) dã thoát b?ng xoay ? v? NORMAL ngay */
+                /* Side-only (left/right) dï¿½ thoï¿½t b?ng xoay ? v? NORMAL ngay */
                 if (escape_mask & (LINE_FRONT )) {
                     current_state    = STATE_ESCAPE_TURN;
                     state_start_time = now;
@@ -103,7 +113,7 @@ void Robot_Run(void)
                 if (!s.front && !s.back && !s.left && !s.right) {
                     current_state = STATE_NORMAL;
                 } else {
-                    current_state    = STATE_ESCAPE_REVERSE;  // V?n dính line ? lùi l?i
+                    current_state    = STATE_ESCAPE_REVERSE;  // V?n dï¿½nh line ? lï¿½i l?i
                     state_start_time = now;
                 }
             }
@@ -113,7 +123,7 @@ void Robot_Run(void)
         case STATE_NORMAL:
         default:
         {
-            /* Polling fallback – b?t line k? c? khi interrupt miss do t?c d? cao (s? c? 1) */
+            /* Polling fallback ï¿½ b?t line k? c? khi interrupt miss do t?c d? cao (s? c? 1) */
             /*LineState poll = Line_Read();
              uint8_t poll_mask = 0;
             if(poll.front) poll_mask |= LINE_FRONT;
