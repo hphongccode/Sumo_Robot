@@ -42,18 +42,16 @@ PB7	IN4
 */
 void Motor_LeftForward(uint8_t speed)
 {
+    Motor_SetSpeedLeft(speed);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
-
-    Motor_SetSpeedLeft(speed);
 }
 
 void Motor_LeftBackward(uint8_t speed)
 {
+    Motor_SetSpeedLeft(speed);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
-
-    Motor_SetSpeedLeft(speed);
 }
 
 /* 
@@ -62,18 +60,16 @@ void Motor_LeftBackward(uint8_t speed)
 
 void Motor_RightForward(uint8_t speed)
 {
+    Motor_SetSpeedRight(speed);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
-
-    Motor_SetSpeedRight(speed);
 }
 
 void Motor_RightBackward(uint8_t speed)
 {
+    Motor_SetSpeedRight(speed);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
-
-    Motor_SetSpeedRight(speed);
 }
 
 /* 
@@ -108,6 +104,12 @@ void Motor_Stop(void)
 {
     Motor_SetSpeedLeft(0);
     Motor_SetSpeedRight(0);
+
+    /* Clear direction pins to avoid glitchy brake pulse on next Motor_Set */
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
 }
 void Motor_Set(int16_t left, int16_t right)
 {

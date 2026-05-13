@@ -5,8 +5,8 @@ extern UART_HandleTypeDef huart1;
 
 uint8_t rx_buffer[RX_BUF_SIZE];      // Buffer cho DMA nhận dữ liệu
 uint8_t main_buffer[RX_BUF_SIZE];    // Buffer để xử lý ở vòng lặp chính
-uint16_t rx_data_len = 0;
-uint8_t data_ready_flag = 0;
+volatile uint8_t data_ready_flag = 0;
+volatile uint16_t rx_data_len = 0;
 
 void UART_DMA_Init(void) {
     __HAL_UART_CLEAR_IDLEFLAG(&huart1);

@@ -1,11 +1,12 @@
-
+#include <stdlib.h>
 #include "message.h"
 #include "uart.h" // Sử dụng lại thư viện gửi dữ liệu đã tạo ở bước trước
 #include "Robot_Control.h"
 #include "Motor.h"
 
-extern float speed_multiplier;
-extern uint8_t robot_mode;
+extern volatile float speed_multiplier;
+static int speed = 85; // speed >= 0 & <= 100
+extern volatile uint8_t robot_mode;
 /**
  * @brief Hàm phân giải lệnh nhận được từ ESP32
  * @param data: Con trỏ đến bộ đệm chứa dữ liệu
@@ -19,6 +20,8 @@ void CMD_Process(uint8_t *data, uint16_t len) {
 
     memcpy(msg, data, len);
     msg[len] = '\0'; // Kết thúc chuỗi
+
+    char *speed_ptr = strstr(msg, "SPEED:");
 
     /* BẮT ĐẦU PHÂN GIẢI LỆNH */
 
@@ -36,13 +39,18 @@ void CMD_Process(uint8_t *data, uint16_t len) {
         }
         // CHUYỂN SANG MODE AUTO
         else if (strstr(msg, "MODE:0") != NULL) {
+        	Robot_ResetState();
             robot_mode = 0;
             UART_DMA_SendString("STM32: Switched to AUTO Mode\r\n");
         }
         // CHUYỂN SANG MODE MANUAL
         else if (strstr(msg, "MODE:1") != NULL) {
+        	Motor_Set(0, 0);
             robot_mode = 1;
             UART_DMA_SendString("STM32: Switched to MANUAL Mode\r\n");
+        }
+        else if (speed_ptr != NULL) {
+            speed = atoi(speed_ptr + 6);
         }
 
         // ----------------------------------------------------
@@ -57,8 +65,11 @@ void CMD_Process(uint8_t *data, uint16_t len) {
 				else if (strstr(msg, "BW:1") != NULL) { Action_MoveBackward(); }
 				else if (strstr(msg, "RL:1") != NULL) { Action_TurnLeft(); }
 				else if (strstr(msg, "RR:1") != NULL) { Action_TurnRight(); }
-				// Nếu có bất kỳ lệnh nào chứa ":0" (Nhả nút)
-				else if (strstr(msg, ":0") != NULL) {
+				// Nhả nút - chỉ khớp đúng lệnh thả nút điều khiển
+				else if (strstr(msg, "FW:0") != NULL ||
+						 strstr(msg, "BW:0") != NULL ||
+						 strstr(msg, "RL:0") != NULL ||
+						 strstr(msg, "RR:0") != NULL) {
 					Action_Stop();
 				}
             }
@@ -73,21 +84,21 @@ void CMD_Process(uint8_t *data, uint16_t len) {
 
 /* ĐỊNH NGHĨA CÁC HÀNH ĐỘNG CHI TIẾT */
 void Action_MoveForward(void) {
-	Motor_Set(85, 85);
+	Motor_Set(speed, speed - MOTOR_TRIM);
 }
 
 void Action_MoveBackward(void) {
-	Motor_Set(-85, -85);
+	Motor_Set(-speed, -speed + MOTOR_TRIM);
 }
 
 void Action_TurnLeft(void) {
-    Motor_Set(-85, 85);
+    Motor_Set(-speed, speed - MOTOR_TRIM);
 }
 
 void Action_TurnRight(void) {
-    Motor_Set(85, -85);
+    Motor_Set(speed, -speed + MOTOR_TRIM);
 }
 
 void Action_Stop(void) {
-    Motor_Set(0, 0);
+    Motor_Stop();
 }

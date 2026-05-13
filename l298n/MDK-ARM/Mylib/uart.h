@@ -11,8 +11,8 @@
 
 extern uint8_t rx_buffer[RX_BUF_SIZE];
 extern uint8_t main_buffer[RX_BUF_SIZE];
-extern uint16_t rx_data_len;
-extern uint8_t data_ready_flag;
+extern volatile uint8_t data_ready_flag;
+extern volatile uint16_t rx_data_len;
 
 void UART_DMA_Init(void);
 void UART_DMA_SendString(char *str);
