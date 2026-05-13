@@ -113,7 +113,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
+  volatile UltraState u;
   // Ra lệnh cho UART bắt đầu nghe, nghe đến khi nào dây tín hiệu "nghỉ" (Idle) thì báo ngắt
   UART_DMA_Init();
 
@@ -123,7 +123,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    //u = Ultra_ReadAll();
+    u = Ultra_ReadAll();
 	if (data_ready_flag == 1) {
 		  data_ready_flag = 0;
 		  CMD_Process(main_buffer, rx_data_len);
