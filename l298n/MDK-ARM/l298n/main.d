@@ -20,5 +20,6 @@ l298n/main.o: ..\Core\Src\main.c ..\Core\Inc\main.h \
   ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_pwr.h \
   ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_tim.h \
   ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_tim_ex.h \
-  Mylib\Motor.h Mylib\line_sensor.h Mylib\ultrasonic.h Mylib\fuzzy.h \
+  ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_uart.h Mylib\Motor.h \
+  Mylib\line_sensor.h Mylib\ultrasonic.h Mylib\fuzzy.h \
   Mylib\Robot_Control.h
