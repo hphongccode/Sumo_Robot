@@ -4,7 +4,7 @@
 #include "line_sensor.h"
 #include "ultrasonic.h"
 #include "fuzzy.h"
-#include "message.h"
+#include "message.h"   // <-- thêm header chứa MSG_SendRobotState
 
 extern volatile uint8_t line_flag;
 extern volatile uint8_t line_dir;
@@ -22,12 +22,12 @@ static uint8_t    escape_mask      = 0;
 static uint32_t   state_start_time = 0;
 static uint32_t   last_seen_time   = 0;
 
-#define TIME_REVERSE       300
-#define TIME_TURN          600
+#define TIME_REVERSE       400
+#define TIME_TURN          550
 
 #define OPPONENT_DIST_CM   40u
 #define SEARCH_TIMEOUT_MS  2500u
-#define SEARCH_DURATION_MS 2500u
+#define SEARCH_DURATION_MS 3000u
 #define IDLE_DURATION_MS   5000u
 
 /* ═══════════════════════════════════════════════════════ */
@@ -72,8 +72,8 @@ static void escape_get_motors(uint8_t mask, int16_t *ls, int16_t *rs)
 
 static void escape_get_turn(uint8_t mask, int16_t *ls, int16_t *rs)
 {
-    if(mask & LINE_RIGHT) { *ls = -60; *rs =  80; }
-    else                  { *ls =  80; *rs = -60; }
+    if(mask & LINE_RIGHT) { *ls = -90; *rs =  90; }
+    else                  { *ls =  90; *rs = -90; }
 }
 
 /* ═══════════════════════════════════════════════════════ */
@@ -102,6 +102,20 @@ void Robot_Run(void)
     /* ── 1. Ngắt cảm biến mép ── */
     if (line_flag)
     {
+			if (current_state == STATE_ESCAPE_REVERSE ||
+            current_state == STATE_ESCAPE_TURN)
+        {
+            /* Robot đang lùi/xoay tránh line rồi → BỎ QUA ngắt mới.
+               Nếu không bỏ qua, state_start_time sẽ bị reset liên tục
+               khiến escape timer không bao giờ hết hạn → robot giật. */
+            __disable_irq();
+            line_dir  |= escape_mask;   // Gộp hướng mới (nếu có) vào mask hiện tại
+            escape_mask = line_dir;
+            line_dir    = 0;
+            line_flag   = 0;
+            __enable_irq();
+            return;  // Giữ nguyên state và timer đang chạy
+        }
         __disable_irq();
         escape_mask = line_dir;
         line_dir    = 0;

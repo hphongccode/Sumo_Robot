@@ -31,6 +31,9 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size) {
         data_ready_flag = 1;
 
         // 4. Khởi động lại DMA
+        // SỬA LỖI: Nếu cấu hình DMA trong CubeMX là Circular, hàm ReceiveToIdle sẽ báo BUSY và không khởi động lại bộ đệm về 0.
+        // Ta phải Abort DMA hiện tại để ép nó quay về trạng thái READY, sau đó mới Receive lại.
+        HAL_UART_AbortReceive(&huart1); 
         HAL_UARTEx_ReceiveToIdle_DMA(&huart1, rx_buffer, RX_BUF_SIZE);
         __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT);
     }

@@ -41,6 +41,13 @@ static float fuzzy_less(float a, float b) {
     if(d <=  0.0f) return 0.0f;
     return d / 20.0f;
 }
+/* Thêm hàm này bên trên Fuzzy_Control */
+static float fuzzy_less_range(float a, float b, float range) {
+    float d = b - a;
+    if(d >= range) return 1.0f;
+    if(d <=  0.0f) return 0.0f;
+    return d / range;
+}
 void Fuzzy_Control(float l, float m, float r, int16_t *ls, int16_t *rs)
 {
     /* L?c giá tr? l?i t? thu vi?n sonar */
@@ -61,8 +68,24 @@ void Fuzzy_Control(float l, float m, float r, int16_t *ls, int16_t *rs)
        R7: all=FAR          ? search
     */
     float w1 = nM;
-    float w2 = nL;
-    float w3 = nR;
+#define NEAR_PRIO_RANGE  2.0f
+
+/* Tính uu tiên: bên nào g?n hon ? prio = 1, bên kia = 0.
+   B?ng nhau hoàn toàn ? trái th?ng m?c d?nh (tiebreak).                   */
+float prio_L = fuzzy_less_range(l, r, NEAR_PRIO_RANGE);  /* l g?n hon r    */
+float prio_R = fuzzy_less_range(r, l, NEAR_PRIO_RANGE);  /* r g?n hon l    */
+float prio_sum = prio_L + prio_R;
+
+if (prio_sum < 1e-6f) {
+    prio_L = 1.0f; prio_R = 0.0f;  /* b?ng nhau ? trái th?ng              */
+} else {
+    prio_L /= prio_sum;             /* normalize: t?ng = 1, bên nào g?n hon */
+    prio_R /= prio_sum;             /* thì nh?n toàn b? tr?ng s?            */
+}
+
+	float w2 = nL * prio_L;
+	float w3 = nR * prio_R;
+    
     float w4 = mM * (1.0f - nL) * (1.0f - nR)
              * fuzzy_less(m, l) * fuzzy_less(m, r);
     float w5 = mL * (1.0f - nM) * (1.0f - nR)
