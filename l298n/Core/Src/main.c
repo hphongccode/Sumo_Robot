@@ -123,13 +123,14 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
+		
+		
   
 	if (data_ready_flag == 1) {
 		  data_ready_flag = 0;
 		  CMD_Process(main_buffer, rx_data_len);
 	  }
-
+		
 	  if (speed_multiplier) {
 		  if (robot_mode == 0) {
 			  Robot_Run();  // Auto mode only
@@ -138,7 +139,7 @@ int main(void)
 	  } else {
 		  Motor_Stop();  // Power off = stop
 	  }
-
+	
 	}
   /* USER CODE END 3 */
 }

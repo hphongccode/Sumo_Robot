@@ -17,6 +17,7 @@
 
 /* Nguyên mẫu hàm */
 void CMD_Process(uint8_t *data, uint16_t len);
+void MSG_SendRobotState(int16_t ls, int16_t rs, uint8_t state);
 
 /* Các hàm hành động (Ví dụ cho Robot Sumo) */
 void Action_MoveForward(void);
@@ -26,5 +27,9 @@ void Action_TurnRight(void);
 void Action_Stop(void);
 
 void Action_ToggleLED(void);
+
+
+
+
 
 #endif /* MESSAGE_H_ */

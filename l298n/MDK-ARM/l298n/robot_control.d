@@ -21,4 +21,4 @@ l298n/robot_control.o: Mylib\Robot_Control.c Mylib\robot_control.h \
   ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_tim.h \
   ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_tim_ex.h \
   ..\Drivers\STM32F1xx_HAL_Driver\Inc\stm32f1xx_hal_uart.h Mylib\Motor.h \
-  Mylib\line_sensor.h Mylib\ultrasonic.h Mylib\fuzzy.h
+  Mylib\line_sensor.h Mylib\ultrasonic.h Mylib\fuzzy.h Mylib\message.h

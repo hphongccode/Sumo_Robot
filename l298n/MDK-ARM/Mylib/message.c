@@ -22,7 +22,7 @@ void CMD_Process(uint8_t *data, uint16_t len) {
     msg[len] = '\0'; // Kết thúc chuỗi
 
     char *speed_ptr = strstr(msg, "SPEED:");
-		
+
     /* BẮT ĐẦU PHÂN GIẢI LỆNH */
 
     // Kiểm tra lệnh tiến
@@ -81,6 +81,28 @@ void CMD_Process(uint8_t *data, uint16_t len) {
             UART_DMA_SendString("STM32: Unknown Command!\r\n");
         }
 }
+// ==========================================
+// THÊM HÀM NÀY VÀO CUỐI FILE message.c
+// ==========================================
+void MSG_SendRobotState(int16_t ls, int16_t rs, uint8_t state) {
+    // Biến static lưu thời điểm gửi cuối cùng
+    static uint32_t last_send_time = 0;
+
+    // Giới hạn tần suất gửi (ví dụ mỗi 50ms tương đương 20 khung hình/giây)
+    if (HAL_GetTick() - last_send_time >= 50) {
+        char buf[64];
+
+        // Đóng gói dữ liệu. ESP32 sẽ nhận được ví dụ: "RSTATE:0,70,70\r\n"
+        snprintf(buf, sizeof(buf), "RSTATE:%d,%d,%d\r\n", state, ls, rs);
+
+        // Gọi hàm truyền UART có sẵn của bạn
+        UART_DMA_SendString(buf);
+
+        // Cập nhật lại thời gian
+        last_send_time = HAL_GetTick();
+    }
+}
+
 
 /* ĐỊNH NGHĨA CÁC HÀNH ĐỘNG CHI TIẾT */
 void Action_MoveForward(void) {

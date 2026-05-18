@@ -592,16 +592,6 @@
               <FilePath>.\Mylib\fuzzy.h</FilePath>
             </File>
             <File>
-              <FileName>Robot_Control.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Mylib\Robot_Control.c</FilePath>
-            </File>
-            <File>
-              <FileName>Robot_Control.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Mylib\Robot_Control.h</FilePath>
-            </File>
-            <File>
               <FileName>uart.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Mylib\uart.c</FilePath>
@@ -610,6 +600,16 @@
               <FileName>uart.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\Mylib\uart.h</FilePath>
+            </File>
+            <File>
+              <FileName>Robot_Control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Mylib\Robot_Control.c</FilePath>
+            </File>
+            <File>
+              <FileName>Robot_Control.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Mylib\Robot_Control.h</FilePath>
             </File>
             <File>
               <FileName>message.c</FileName>
