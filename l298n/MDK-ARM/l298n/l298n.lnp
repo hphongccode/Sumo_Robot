@@ -24,6 +24,7 @@
 "l298n\fuzzy.o"
 "l298n\robot_control.o"
 "l298n\uart.o"
+"l298n\message.o"
 --strict --scatter "l298n\l298n.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

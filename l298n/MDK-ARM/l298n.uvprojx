@@ -611,6 +611,16 @@
               <FileType>5</FileType>
               <FilePath>.\Mylib\uart.h</FilePath>
             </File>
+            <File>
+              <FileName>message.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Mylib\message.c</FilePath>
+            </File>
+            <File>
+              <FileName>message.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Mylib\message.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

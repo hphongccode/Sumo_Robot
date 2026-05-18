@@ -22,7 +22,7 @@ void CMD_Process(uint8_t *data, uint16_t len) {
     msg[len] = '\0'; // Kết thúc chuỗi
 
     char *speed_ptr = strstr(msg, "SPEED:");
-
+		
     /* BẮT ĐẦU PHÂN GIẢI LỆNH */
 
     // Kiểm tra lệnh tiến

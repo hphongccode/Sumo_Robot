@@ -14,8 +14,8 @@ static RobotState current_state    = STATE_NORMAL;
 static uint8_t    escape_mask      = 0;
 static uint32_t   state_start_time = 0;
 
-#define TIME_REVERSE  400
-#define TIME_TURN     550
+#define TIME_REVERSE  300
+#define TIME_TURN     600
 
 void Robot_ResetState(void) {
     current_state    = STATE_NORMAL;
@@ -148,7 +148,7 @@ void Robot_Run(void)
             UltraState u = Ultra_ReadAll();
             int16_t ls, rs;
             Fuzzy_Control(u.left, u.mid, u.right, &ls, &rs);
-            Motor_Set(ls*0.9, rs*0.9);
+            Motor_Set(ls*0.8, rs*0.8);
             break;
         }
     }
