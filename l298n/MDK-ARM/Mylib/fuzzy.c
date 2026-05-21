@@ -1,91 +1,77 @@
 #include "fuzzy.h"
-/* ===== CRISP OUTPUT VALUES ===== */
-#define OUT_RVS  (-85.0f)
-#define OUT_MID   (65.0f)
-#define OUT_FAST  (85.0f)
-#define OUT_MAX  (100.0f)
-/* ===== LAYER 1: MEMBERSHIP FUNCTIONS =====
-   NEAR : full [0–15],  zero t?i 25
-   MID  : rise [20–30], full [30–50], fall [50–65], zero t?i 65
-   FAR  : rise [55–70], full t?i 70+
 
-   Overlap zones:
-     NEAR n MID : [20–25]
-     MID  n FAR : [55–65]
-*/
+/* -----------------------------------------------------------
+   CRISP OUTPUT VALUES
+   ---------------------------------------------------------
+   OUT_CURVE_NEAR (35): T?c d? bánh CH?M khi húc cong – G?N
+     ? Robot ti?n c? 2 bánh, l?ch t?c ? lao th?ng vào v?t c?n
+     ? Thay th? ki?u xoay t?i ch? cu (1 bánh lùi) r?t ch?m
+   
+   OUT_CURVE_MID (55): T?c d? bánh CH?M khi húc cong – TRUNG
+     ? Cong nh? hon NEAR, dùng khi v?t c?n ? kho?ng 25-55cm
+   ----------------------------------------------------------- */
+#define OUT_RVS         (-85.0f)
+#define OUT_CURVE_NEAR  (50.0f)   /* Bánh ch?m – húc cong G?N  */
+#define OUT_CURVE_MID   (60.0f)   /* Bánh ch?m – húc cong TRUNG */
+#define OUT_MID         (70.0f)
+#define OUT_FAST        (85.0f)
+#define OUT_MAX         (100.0f)
 
-/* NEAR: full [0–20], tuy?n tính gi?m v? 0 t?i 30 */
+/* ----------- MEMBERSHIP FUNCTIONS ----------- */
+
 static float mu_near(float x) {
     if (x <= 20.0f) return 1.0f;
     if (x >= 30.0f) return 0.0f;
-    return (30.0f - x) / 10.0f;         
+    return (30.0f - x) / 10.0f;
 }
 
-/* MID: rise [25–40], plateau [40–55], fall [55–70] */
 static float mu_mid(float x) {
     if (x <= 25.0f || x >= 70.0f) return 0.0f;
-    if (x <= 40.0f) return (x - 25.0f) / 15.0f;   /* rise  */
-    if (x <= 55.0f) return 1.0f;                   /* peak  */
-    return (70.0f - x) / 15.0f;                    /* fall  */
+    if (x <= 40.0f) return (x - 25.0f) / 15.0f;
+    if (x <= 55.0f) return 1.0f;
+    return (70.0f - x) / 15.0f;
 }
 
-/* FAR: rise [65–75], full t?i 75+ */
 static float mu_far(float x) {
     if (x <= 65.0f) return 0.0f;
     if (x >= 75.0f) return 1.0f;
-    return (x - 65.0f) / 10.0f;          /* slope: 1/15 */
+    return (x - 65.0f) / 10.0f;
 }
+
+/* ----------------------------------------------------------
+   [ÐÃ S?A L?I ÐI?M MÙ]: fuzzy_less
+   - Giúp h?p nh?t góc nhìn khi 2 c?m bi?n cùng th?y v?t c?n.
+   - Tránh vi?c 2 c?m bi?n cùng kho?ng cách t? tri?t tiêu nhau.
+   ---------------------------------------------------------- */
 static float fuzzy_less(float a, float b) {
     float d = b - a;
-    if(d >= 20.0f) return 1.0f;
-    if(d <=  0.0f) return 0.0f;
-    return d / 20.0f;
+    
+    /* N?u b xa hon a rõ r?t (d >= 10) -> a ch?c ch?n g?n hon */
+    if (d >= 10.0f) return 1.0f;
+    
+    /* N?u b g?n hon a rõ r?t (d <= -10) -> a không h? g?n hon */
+    if (d <= -10.0f) return 0.0f;
+    
+    /* N?u a và b ngang ngang nhau -> chia d?u tr?ng s? d? hòa tr?n */
+    return (d + 10.0f) / 20.0f;
 }
-/* Thêm hàm này bên trên Fuzzy_Control */
-static float fuzzy_less_range(float a, float b, float range) {
-    float d = b - a;
-    if(d >= range) return 1.0f;
-    if(d <=  0.0f) return 0.0f;
-    return d / range;
-}
+
+/* ----------------------------------------------------------- */
 void Fuzzy_Control(float l, float m, float r, int16_t *ls, int16_t *rs)
 {
-    /* L?c giá tr? l?i t? thu vi?n sonar */
-    if(l <= 0.1f) l = 999.0f;
-    if(m <= 0.1f) m = 999.0f;
-    if(r <= 0.1f) r = 999.0f;
-    /* ===== LAYER 1: TÍNH Ð? THU?C ===== */
+    if (l <= 0.1f) l = 999.0f;
+    if (m <= 0.1f) m = 999.0f;
+    if (r <= 0.1f) r = 999.0f;
+
+    /* ===== LAYER 1: Ð? THU?C ===== */
     float nL = mu_near(l), mL = mu_mid(l), fL = mu_far(l);
     float nM = mu_near(m), mM = mu_mid(m), fM = mu_far(m);
     float nR = mu_near(r), mR = mu_mid(r), fR = mu_far(r);
-    /* ===== LAYER 2: TR?NG S? T?NG RULE =====
-       R1: M=NEAR           ? húc th?ng
-       R2: L=NEAR           ? quay trái húc
-       R3: R=NEAR           ? quay ph?i húc
-       R4: min=M, MID range ? ti?n th?ng nhanh
-       R5: min=L, MID range ? xoay trái nh? húc
-       R6: min=R, MID range ? xoay ph?i nh? húc
-       R7: all=FAR          ? search
-    */
+
+    /* ===== LAYER 2: TR?NG S? ===== */
     float w1 = nM;
-#define NEAR_PRIO_RANGE  2.0f
-
-/* Tính uu tiên: bên nào g?n hon ? prio = 1, bên kia = 0.
-   B?ng nhau hoàn toàn ? trái th?ng m?c d?nh (tiebreak).                   */
-float prio_L = fuzzy_less_range(l, r, NEAR_PRIO_RANGE);  /* l g?n hon r    */
-float prio_R = fuzzy_less_range(r, l, NEAR_PRIO_RANGE);  /* r g?n hon l    */
-float prio_sum = prio_L + prio_R;
-
-if (prio_sum < 1e-6f) {
-    prio_L = 1.0f; prio_R = 0.0f;  /* b?ng nhau ? trái th?ng              */
-} else {
-    prio_L /= prio_sum;             /* normalize: t?ng = 1, bên nào g?n hon */
-    prio_R /= prio_sum;             /* thì nh?n toàn b? tr?ng s?            */
-}
-
-	float w2 = nL * prio_L;
-	float w3 = nR * prio_R;
-    
+    float w2 = nL;
+    float w3 = nR;
     float w4 = mM * (1.0f - nL) * (1.0f - nR)
              * fuzzy_less(m, l) * fuzzy_less(m, r);
     float w5 = mL * (1.0f - nM) * (1.0f - nR)
@@ -93,31 +79,37 @@ if (prio_sum < 1e-6f) {
     float w6 = mR * (1.0f - nL) * (1.0f - nM)
              * fuzzy_less(r, l) * fuzzy_less(r, m);
     float w7 = fL * fM * fR;
+
     /* ===== LAYER 3: NORMALIZE ===== */
     float w_sum = w1 + w2 + w3 + w4 + w5 + w6 + w7;
-    if(w_sum < 1e-6f) {          // Không rule nào fire ? default search
+
+    if (w_sum < 1e-6f) {
+        /* Không rule nào fire -> xoay PH?I tìm ki?m */
         *ls =  (int16_t)OUT_FAST;
         *rs = -(int16_t)OUT_FAST;
         return;
     }
-    float wn1=w1/w_sum, wn2=w2/w_sum, wn3=w3/w_sum;
-    float wn4=w4/w_sum, wn5=w5/w_sum, wn6=w6/w_sum, wn7=w7/w_sum;
-    /* ===== LAYER 4: CRISP OUTPUT T?NG RULE ===== */
-    //         R1        R2        R3        R4        R5        R6        R7
-    float LS[] = {OUT_MAX, OUT_RVS, OUT_MAX, OUT_FAST, OUT_MID,  OUT_FAST, OUT_RVS};
-    float RS[] = {OUT_MAX, OUT_MAX, OUT_RVS, OUT_FAST, OUT_FAST, OUT_MID,  OUT_FAST };
-    float wn[]  = {wn1,     wn2,     wn3,     wn4,      wn5,      wn6,      wn7    };
+
+    float wn1 = w1/w_sum, wn2 = w2/w_sum, wn3 = w3/w_sum;
+    float wn4 = w4/w_sum, wn5 = w5/w_sum, wn6 = w6/w_sum, wn7 = w7/w_sum;
+
+    /*            R1        R2              R3              R4        R5             R6             R7        */
+    float LS[] = {OUT_MAX,  OUT_CURVE_NEAR, OUT_MAX,        OUT_FAST, OUT_CURVE_MID, OUT_FAST,      OUT_FAST };
+    float RS[] = {OUT_MAX,  OUT_MAX,        OUT_CURVE_NEAR, OUT_FAST, OUT_FAST,      OUT_CURVE_MID, OUT_RVS  };
+    float wn[] = {wn1,      wn2,            wn3,            wn4,      wn5,           wn6,           wn7      };
+
     /* ===== LAYER 5: WEIGHTED AVERAGE ===== */
     float ls_f = 0.0f, rs_f = 0.0f;
-    for(int i = 0; i < 7; i++) {
+    for (int i = 0; i < 7; i++) {
         ls_f += wn[i] * LS[i];
         rs_f += wn[i] * RS[i];
     }
-    /* Clamp -100 ~ 100 */
-    if(ls_f >  100.0f) ls_f =  100.0f;
-    if(ls_f < -100.0f) ls_f = -100.0f;
-    if(rs_f >  100.0f) rs_f =  100.0f;
-    if(rs_f < -100.0f) rs_f = -100.0f;
+
+    if (ls_f >  100.0f) ls_f =  100.0f;
+    if (ls_f < -100.0f) ls_f = -100.0f;
+    if (rs_f >  100.0f) rs_f =  100.0f;
+    if (rs_f < -100.0f) rs_f = -100.0f;
+
     *ls = (int16_t)ls_f;
     *rs = (int16_t)rs_f;
 }
