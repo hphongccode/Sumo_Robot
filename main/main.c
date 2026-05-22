@@ -10,7 +10,6 @@
 #include "freertos/task.h"
 #include "esp_https_ota.h"
 #include "mdns.h"
-#include "driver/i2c_master.h"
 #include "led_strip.h"
 #include "driver/uart.h"
 #include "driver/gpio.h"
@@ -20,19 +19,12 @@
 static const char *TAG = "ROBOT_SUMO";
 
 
-#define WIFI_SSID           "B17.17"  
-#define WIFI_PASS           "12345678"   
+#define WIFI_SSID           ""  
+#define WIFI_PASS           ""
 // #define BLYNK_TOKEN         ""
 
 #define LED_GPIO_PIN        48
 #define LED_NUMBERS         1
-
-
-#define I2C_SDA_PIN         4
-#define I2C_SCL_PIN         5
-#define MAX17043_ADDR       0x36
-#define MAX17043_VCELL      0x02
-#define MAX17043_SOC        0x04
 
 
 #define UART_PORT_NUM       UART_NUM_1
@@ -44,7 +36,6 @@ static const char *TAG = "ROBOT_SUMO";
 // Biến toàn cục
 esp_mqtt_client_handle_t client;
 volatile bool is_wifi_connected = false;
-i2c_master_dev_handle_t max17043_handle;
 led_strip_handle_t led_strip;
 
 void uart_stm32_init(void) {
@@ -97,35 +88,6 @@ void led_init(void) {
 void set_led_color(uint8_t r, uint8_t g, uint8_t b) {
     led_strip_set_pixel(led_strip, 0, r, g, b);
     led_strip_refresh(led_strip);
-}
-
-void max17043_init() {
-    i2c_master_bus_config_t i2c_bus_config = {
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .i2c_port = -1,
-        .scl_io_num = I2C_SCL_PIN,
-        .sda_io_num = I2C_SDA_PIN,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true,
-    };
-    i2c_master_bus_handle_t bus_handle;
-    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_config, &bus_handle));
-
-    i2c_device_config_t dev_cfg = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = MAX17043_ADDR,
-        .scl_speed_hz = 100000,
-    };
-    ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_cfg, &max17043_handle));
-}
-
-esp_err_t max17043_read_reg(uint8_t reg, uint16_t *value) {
-    uint8_t data[2];
-    esp_err_t err = i2c_master_transmit_receive(max17043_handle, &reg, 1, data, 2, -1);
-    if (err == ESP_OK) {
-        *value = (data[0] << 8) | data[1];
-    }
-    return err;
 }
 
 
@@ -189,6 +151,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             esp_mqtt_client_subscribe(client, "downlink/ds/RL", 0);
             esp_mqtt_client_subscribe(client, "downlink/ds/RR", 0);
             esp_mqtt_client_subscribe(client, "downlink/ds/UPDATE_FW", 0);
+            esp_mqtt_client_subscribe(client, "downlink/ds/SPEED", 0);
             break;
 
         case MQTT_EVENT_DATA:
@@ -212,6 +175,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                 else if (strcmp(topic_buf, "downlink/ds/BW") == 0)       uart_send_to_stm32("BW", val);
                 else if (strcmp(topic_buf, "downlink/ds/RL") == 0)       uart_send_to_stm32("RL", val);
                 else if (strcmp(topic_buf, "downlink/ds/RR") == 0)       uart_send_to_stm32("RR", val);
+                else if (strcmp(topic_buf, "downlink/ds/SPEED") == 0)    uart_send_to_stm32("SPEED", val);
             }
             break;
             
@@ -222,18 +186,61 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
-void telemetry_task(void *pvParameters) {
-    int current_mode = 0; 
-    // uint16_t raw_soc;
-
+void uart_rx_task(void *arg) {
+    uint8_t *data = (uint8_t *) malloc(UART_BUF_SIZE);
     while (1) {
-        current_mode = !current_mode; 
-        char mode_data[8];
-        snprintf(mode_data, sizeof(mode_data), "%d", current_mode);
-        esp_mqtt_client_publish(client, "ds/MODE", mode_data, strlen(mode_data), 0, 0);
-        
-        vTaskDelay(pdMS_TO_TICKS(5000)); 
+        int len = uart_read_bytes(UART_PORT_NUM, data, UART_BUF_SIZE - 1, pdMS_TO_TICKS(100));
+        if (len > 0) {
+            data[len] = '\0';
+            
+            // Xóa ký tự xuống dòng nếu có
+            char *newline = strchr((char *)data, '\n');
+            if (newline) *newline = '\0';
+            newline = strchr((char *)data, '\r');
+            if (newline) *newline = '\0';
+            
+            ESP_LOGI(TAG, "<< Receive UART <- STM32: %s", data);
+            
+            if (client != NULL) {
+                // Kiểm tra xem có chuỗi RSTATE không (ví dụ: RSTATE:0,70,70)
+                char *rstate_ptr = strstr((char *)data, "RSTATE:");
+                if (rstate_ptr != NULL) {
+                    int state = 0, ls = 0, rs = 0;
+                    if (sscanf(rstate_ptr, "RSTATE:%d,%d,%d", &state, &ls, &rs) == 3) {
+                        char buf[16];
+                        
+                        const char *state_str = "UNKNOWN";
+                        switch (state) {
+                            case 0: state_str = "NORMAL"; break;
+                            case 1: state_str = "ESCAPE REVERSE"; break;
+                            case 2: state_str = "ESCAPE TURN"; break;
+                            case 3: state_str = "SEARCH"; break;
+                            case 4: state_str = "IDLE"; break;
+                            default: state_str = "UNKNOWN"; break;
+                        }
+                        esp_mqtt_client_publish(client, "ds/STATE_RX", state_str, 0, 1, 0);
+                        
+                        snprintf(buf, sizeof(buf), "%d", ls);
+                        esp_mqtt_client_publish(client, "ds/LS_RX", buf, 0, 1, 0);
+                        
+                        snprintf(buf, sizeof(buf), "%d", rs);
+                        esp_mqtt_client_publish(client, "ds/RS_RX", buf, 0, 1, 0);
+                    }
+                } 
+                else {
+                    // Fallback logic cũ
+                    char *speed_ptr = strstr((char *)data, "SPEED:");
+                    if (speed_ptr != NULL) {
+                        esp_mqtt_client_publish(client, "ds/SPEED_RX", speed_ptr + 6, 0, 1, 0);
+                    } else if (strlen((char *)data) > 0) {
+                        // Nếu STM32 chỉ gửi một số
+                        esp_mqtt_client_publish(client, "ds/SPEED_RX", (char *)data, 0, 1, 0);
+                    }
+                }
+            }
+        }
     }
+    free(data);
 }
 
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
@@ -275,7 +282,6 @@ void mqtt_app_start(void) {
     esp_mqtt_client_start(client);
 }
 
-
 void app_main(void) {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -286,7 +292,6 @@ void app_main(void) {
     led_init();
     set_led_color(255, 0, 0); 
     uart_stm32_init(); 
-    // max17043_init();
 
     ESP_LOGI(TAG, "Initializing Wi-Fi...");
     wifi_init_sta();
@@ -299,5 +304,5 @@ void app_main(void) {
     mdns_hostname_set("robot-sumo");
     mqtt_app_start();
     
-    xTaskCreate(telemetry_task, "telemetry_task", 4096, NULL, 5, NULL);
+    xTaskCreate(uart_rx_task, "uart_rx_task", 4096, NULL, 5, NULL);
 }
