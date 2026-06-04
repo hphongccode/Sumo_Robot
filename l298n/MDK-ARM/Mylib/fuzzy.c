@@ -11,31 +11,30 @@
      ? Cong nh? hon NEAR, dùng khi v?t c?n ? kho?ng 25-55cm
    ----------------------------------------------------------- */
 #define OUT_RVS         (-85.0f)
-#define OUT_CURVE_NEAR  (50.0f)   /* Bánh ch?m – húc cong G?N  */
-#define OUT_CURVE_MID   (60.0f)   /* Bánh ch?m – húc cong TRUNG */
-#define OUT_MID         (70.0f)
-#define OUT_FAST        (85.0f)
+#define OUT_CURVE_NEAR  (60.0f)   /* Bánh ch?m – húc cong G?N  */
+#define OUT_CURVE_MID   (70.0f)   /* Bánh ch?m – húc cong TRUNG */
+#define OUT_FAST        (90.0f)
 #define OUT_MAX         (100.0f)
 
 /* ----------- MEMBERSHIP FUNCTIONS ----------- */
 
 static float mu_near(float x) {
-    if (x <= 20.0f) return 1.0f;
-    if (x >= 30.0f) return 0.0f;
-    return (30.0f - x) / 10.0f;
+    if (x <= 15.0f) return 1.0f;
+    if (x >= 25.0f) return 0.0f;
+    return (25.0f - x) / 10.0f;
 }
 
 static float mu_mid(float x) {
-    if (x <= 25.0f || x >= 70.0f) return 0.0f;
-    if (x <= 40.0f) return (x - 25.0f) / 15.0f;
-    if (x <= 55.0f) return 1.0f;
-    return (70.0f - x) / 15.0f;
+    if (x <= 20.0f || x >= 55.0f) return 0.0f;
+    if (x <= 30.0f) return (x - 20.0f) / 10.0f;
+    if (x <= 45.0f) return 1.0f;
+    return (55.0f - x) / 10.0f;
 }
 
 static float mu_far(float x) {
-    if (x <= 65.0f) return 0.0f;
-    if (x >= 75.0f) return 1.0f;
-    return (x - 65.0f) / 10.0f;
+    if (x <= 50.0f) return 0.0f;
+    if (x >= 60.0f) return 1.0f;
+    return (x - 50.0f) / 10.0f;
 }
 
 /* ----------------------------------------------------------

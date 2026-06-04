@@ -22,10 +22,18 @@ static uint8_t    escape_mask      = 0;
 static uint32_t   state_start_time = 0;
 static uint32_t   last_seen_time   = 0;
 
-#define TIME_REVERSE       450
-#define TIME_TURN          500
+/* Hướng dò tìm nhớ lại từ cảm biến bên phát hiện gần nhất */
+typedef enum {
+    DIR_LEFT = 0,
+    DIR_RIGHT
+} SearchDir;
 
-#define OPPONENT_DIST_CM   40u
+static SearchDir  last_seen_dir    = DIR_RIGHT; /* Mặc định xoay Phải ban đầu */
+
+#define TIME_REVERSE       450
+#define TIME_TURN          400
+
+#define OPPONENT_DIST_CM   50u
 #define SEARCH_TIMEOUT_MS  2500u
 #define SEARCH_DURATION_MS 3000u
 #define IDLE_DURATION_MS   5000u
@@ -101,20 +109,20 @@ static void escape_get_motors(uint8_t mask, int16_t *ls, int16_t *rs)
 
     if(f && l) { *ls = -90; *rs = -70; return; }
     if(f && r) { *ls = -70; *rs = -90; return; }
-    if(b && l) { *ls = 100; *rs =  60; return; }
-    if(b && r) { *ls =  60; *rs = 100; return; }
+    if(b && l) { *ls = 90; *rs =  70; return; }
+    if(b && r) { *ls =  70; *rs = 90; return; }
 
     if(f) { *ls = -90; *rs = -90; return; }
     if(b) { *ls =  90; *rs =  90; return; }
-    if(l) { *ls = -90; *rs = -60; return; }
-    if(r) { *ls = -60; *rs = -90; return; }
+    if(l) { *ls = 90; *rs = -75; return; }
+    if(r) { *ls = -75; *rs = 90; return; }
     *ls = 0; *rs = 0;
 }
 
 static void escape_get_turn(uint8_t mask, int16_t *ls, int16_t *rs)
 {
-    if(mask & LINE_RIGHT) { *ls = -90; *rs =  90; }
-    else                  { *ls =  90; *rs = -90; }
+    if(mask & LINE_LEFT) {*ls = 90; *rs =-90; }
+    else                 {*ls =-90; *rs = 90; }
 }
 
 /* ═══════════════════════════════════════════════════════ */
@@ -127,6 +135,7 @@ void Robot_ResetState(void)
     state_start_time = 0;
     last_seen_time   = HAL_GetTick();
     charge_locked    = 0;
+    last_seen_dir    = DIR_RIGHT; /* Reset hướng tìm kiếm mặc định */
 
     __disable_irq();
     line_flag = 0;
@@ -141,21 +150,6 @@ void Robot_Run(void)
 {
     uint32_t now = HAL_GetTick();
 
-    /* ══════════════════════════════════════════════════════
-       [SỬA BUG 1] Xử lý ngắt cảm biến mép
-       ──────────────────────────────────────────────────────
-       BUG CŨ: Khi đang escape mà ngắt line fire liên tục
-       (robot còn đè vạch), code cũ gọi `return` ngay lập tức
-       → switch(current_state) KHÔNG BAO GIỜ CHẠY
-       → timer (now - state_start_time) không được kiểm tra
-       → robot KẸT trong escape, không chuyển sang TURN/NORMAL
-       → biểu hiện: lùi 10cm rồi xoay tại chỗ 3-4 vòng.
-
-       SỬA: Khi đang escape mà có ngắt mới, CHỈ gộp hướng
-       (escape_mask |= new_mask), KHÔNG return. State machine
-       vẫn chạy bình thường → timer luôn được kiểm tra →
-       robot chuyển state đúng thời điểm.
-       ══════════════════════════════════════════════════════ */
     if (line_flag)
     {
         __disable_irq();
@@ -209,7 +203,7 @@ void Robot_Run(void)
         }
 
         /* ─────────────────────────────────────────── */
-        case STATE_ESCAPE_TURN:
+               case STATE_ESCAPE_TURN:
         {
             if ((now - state_start_time) < TIME_TURN) {
                 int16_t ls, rs;
@@ -221,6 +215,15 @@ void Robot_Run(void)
                     current_state  = STATE_NORMAL;
                     last_seen_time = now;
                     charge_locked  = 0;
+                    
+                    /* ĐỒNG BỘ HƯỚNG: Ghi đè hướng xoay thoát vạch vào hướng dò tìm tiếp theo */
+                    if (escape_mask & LINE_LEFT) {
+                        // Nếu chạm line bên Trái -> robot đã xoay PHẢI để tránh -> Tiếp tục dò tìm bên PHẢI
+                        last_seen_dir = DIR_RIGHT;
+                    } else {
+                        // Các trường hợp khác robot đã xoay TRÁI để tránh -> Tiếp tục dò tìm bên TRÁI
+                        last_seen_dir = DIR_LEFT;
+                    }
                 } else {
                     current_state    = STATE_ESCAPE_REVERSE;
                     state_start_time = now;
@@ -233,46 +236,67 @@ void Robot_Run(void)
         case STATE_NORMAL:
         default:
         {
-            /* [SỬA BUG 2] Dùng Ultra_Safe() – phản hồi tức thời,
-               không bị trễ 300ms như bộ lọc IIR cũ */
             UltraState u = Ultra_Safe();
             int16_t ls, rs;
 
-            if (opponent_detected(&u)) {
+            /* [Cải tiến khóa hướng] 
+               1. Nếu đang trong thời gian khóa hướng -> Bỏ qua cảm biến nhất thời để hoàn thành cua sườn */
+            if (charge_locked && (now - charge_lock_time) < LOCK_CHARGE_MS) {
+                // Vẫn lưu bộ nhớ hướng nếu cảm biến vẫn đọc được thông tin đối thủ hợp lệ
+                if (opponent_detected(&u)) {
+                    last_seen_time = now;
+                    if (u.left < u.right) {
+                        last_seen_dir = DIR_LEFT;
+                    } else if (u.right < u.left) {
+                        last_seen_dir = DIR_RIGHT;
+                    }
+                }
+                Drive(locked_ls, locked_rs);
+            } 
+            /* 2. Nếu không khóa hoặc đã hết thời gian khóa -> Đọc và phản hồi cảm biến mới */
+            else if (opponent_detected(&u)) {
                 last_seen_time = now;
 
-                /* Khóa hướng: giữ motor ổn định khi chỉ bên phát hiện */
-                if (charge_locked && (now - charge_lock_time) < LOCK_CHARGE_MS) {
-                    Drive(locked_ls, locked_rs);
-                } else {
-                    Fuzzy_Control(u.left, u.mid, u.right, &ls, &rs);
-                    int16_t out_ls = (int16_t)(ls * 0.9f);
-                    int16_t out_rs = (int16_t)(rs * 0.9f);
-
-                    /* Chỉ cảm biến BÊN thấy (giữa chưa) → khóa hướng */
-                    uint8_t side_only = (u.mid >= OPPONENT_DIST_CM) &&
-                                        (u.left < OPPONENT_DIST_CM ||
-                                         u.right < OPPONENT_DIST_CM);
-                    if (side_only) {
-                        charge_locked    = 1;
-                        charge_lock_time = now;
-                        locked_ls = out_ls;
-                        locked_rs = out_rs;
-                    } else {
-                        charge_locked = 0;
-                    }
-
-                    Drive(out_ls, out_rs);
+                // Cập nhật hướng đối thủ gần nhất phát hiện được
+                if (u.left < u.right) {
+                    last_seen_dir = DIR_LEFT;
+                } else if (u.right < u.left) {
+                    last_seen_dir = DIR_RIGHT;
                 }
-            } else {
+
+                Fuzzy_Control(u.left, u.mid, u.right, &ls, &rs);
+                int16_t out_ls = (int16_t)(ls * 0.9f);
+                int16_t out_rs = (int16_t)(rs * 0.9f);
+
+                /* Chỉ cảm biến BÊN thấy (giữa chưa) → khóa hướng */
+                uint8_t side_only = (u.mid >= OPPONENT_DIST_CM) &&
+                                    (u.left < OPPONENT_DIST_CM ||
+                                     u.right < OPPONENT_DIST_CM);
+                if (side_only) {
+                    charge_locked    = 1;
+                    charge_lock_time = now;
+                    locked_ls = out_ls;
+                    locked_rs = out_rs;
+                } else {
+                    charge_locked = 0;
+                }
+
+                Drive(out_ls, out_rs);
+            } 
+            /* 3. Mất dấu đối thủ -> Dò tìm theo hướng nhìn thấy gần nhất */
+            else {
                 charge_locked = 0;
                 if ((now - last_seen_time) >= SEARCH_TIMEOUT_MS) {
                     current_state    = STATE_SEARCH;
                     state_start_time = now;
                     Drive(0, 0);
                 } else {
-                    Fuzzy_Control(u.left, u.mid, u.right, &ls, &rs);
-                    Drive(ls * 0.9f, rs * 0.9f);
+                    // Xoay tìm kiếm theo hướng nhớ thay vì luôn rẽ phải ở luật mặc định
+                    if (last_seen_dir == DIR_LEFT) {
+                        Drive(-80, 80);   /* Xoay TRÁI dò tìm */
+                    } else {
+                        Drive(80, -80);   /* Xoay PHẢI dò tìm */
+                    }
                 }
             }
             break;
@@ -285,6 +309,12 @@ void Robot_Run(void)
 
             if (opponent_detected(&u)) {
                 last_seen_time = now;
+                if (u.left < u.right) {
+                    last_seen_dir = DIR_LEFT;
+                } else if (u.right < u.left) {
+                    last_seen_dir = DIR_RIGHT;
+                }
+
                 current_state  = STATE_NORMAL;
                 int16_t ls, rs;
                 Fuzzy_Control(u.left, u.mid, u.right, &ls, &rs);
@@ -293,7 +323,12 @@ void Robot_Run(void)
             }
 
             if ((now - state_start_time) < SEARCH_DURATION_MS) {
-                Drive(80, -80);   /* Xoay PHẢI – ưu tiên phải */
+                // Xoay theo hướng nhìn thấy cuối cùng
+                if (last_seen_dir == DIR_LEFT) {
+                    Drive(-80, 80);   /* Xoay TRÁI dò tìm */
+                } else {
+                    Drive(80, -80);   /* Xoay PHẢI dò tìm */
+                }
             } else {
                 current_state    = STATE_IDLE;
                 state_start_time = now;
@@ -309,6 +344,12 @@ void Robot_Run(void)
 
             if (opponent_detected(&u)) {
                 last_seen_time = now;
+                if (u.left < u.right) {
+                    last_seen_dir = DIR_LEFT;
+                } else if (u.right < u.left) {
+                    last_seen_dir = DIR_RIGHT;
+                }
+
                 current_state  = STATE_NORMAL;
                 int16_t ls, rs;
                 Fuzzy_Control(u.left, u.mid, u.right, &ls, &rs);

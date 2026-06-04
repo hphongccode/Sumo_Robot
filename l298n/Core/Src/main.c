@@ -117,7 +117,7 @@ int main(void)
  
   // Ra lệnh cho UART bắt đầu nghe, nghe đến khi nào dây tín hiệu "nghỉ" (Idle) thì báo ngắt
   UART_DMA_Init();
-
+	//volatile UltraState u; 
   while (1)
   {
     /* USER CODE END WHILE */
@@ -125,7 +125,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 		
 	
-  
+//u = Ultra_ReadAll();
 	if (data_ready_flag == 1) {
 		  data_ready_flag = 0;
 		  CMD_Process(main_buffer, rx_data_len);
